@@ -3,101 +3,102 @@ import { trackData, sources, confidences } from '../data/mockData.js';
 export class TrackManager {
     constructor(overlayGroup) {
         this.overlayGroup = overlayGroup;
-        this.trackMeshes = [];
+        this.trackData = trackData;
         this.provenanceByTrackId = {};
-        this.baseTrackCount = trackData.length;
-        this.typeColors = { hostile: 0xff3333, friendly: 0x4a9eff, unknown: 0xffcc00 };
         this.trackDestinations = {};
+        this.typeColors = { hostile: new THREE.Color(0xff3333), friendly: new THREE.Color(0x4a9eff), unknown: new THREE.Color(0xffcc00) };
         
+        this.geometries = {
+            hostile: new THREE.ShapeGeometry((() => { const s = new THREE.Shape(); s.moveTo(0, -0.6); s.lineTo(-0.5, 0.4); s.lineTo(0.5, 0.4); s.closePath(); return s; })()),
+            friendly: new THREE.CircleGeometry(0.4, 16),
+            unknown: new THREE.ShapeGeometry((() => { const s = new THREE.Shape(); s.moveTo(0, 0.5); s.lineTo(0.5, 0); s.lineTo(0, -0.5); s.lineTo(-0.5, 0); s.closePath(); return s; })())
+        };
+        
+        this.instances = {
+            hostile: { mesh: null, tracks: [] },
+            friendly: { mesh: null, tracks: [] },
+            unknown: { mesh: null, tracks: [] }
+        };
+
         this.initTracks();
     }
 
     initTracks() {
-        trackData.forEach(t => {
+        this.trackData.forEach(t => {
             this.provenanceByTrackId[t.id] = {
                 source: sources[Math.floor(Math.random() * sources.length)],
                 confidence: confidences[Math.floor(Math.random() * confidences.length)],
-                lastUpdate: Date.now() - Math.random() * 300000 // up to 5 mins old
+                lastUpdate: Date.now() - Math.random() * 300000
             };
-
-            const color = this.typeColors[t.type];
-            let geo;
-            if(t.type === 'hostile') {
-                const shape = new THREE.Shape();
-                shape.moveTo(0, -0.6); shape.lineTo(-0.5, 0.4); shape.lineTo(0.5, 0.4); shape.closePath();
-                geo = new THREE.ShapeGeometry(shape);
-            } else if(t.type === 'friendly') {
-                geo = new THREE.CircleGeometry(0.4, 16);
-            } else {
-                const shape = new THREE.Shape();
-                shape.moveTo(0, 0.5); shape.lineTo(0.5, 0); shape.lineTo(0, -0.5); shape.lineTo(-0.5, 0); shape.closePath();
-                geo = new THREE.ShapeGeometry(shape);
+            
+            if (this.instances[t.type]) {
+                this.instances[t.type].tracks.push({
+                    t: t,
+                    baseX: t.x, baseY: t.y, offset: Math.random() * Math.PI * 2
+                });
             }
-
-            const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
-            const mesh = new THREE.Mesh(geo, mat);
-            mesh.position.set(t.x, t.y, 0.2);
-            mesh.userData = { track: t, baseX: t.x, baseY: t.y, offset: Math.random() * Math.PI * 2 };
-
-            // Hitbox
-            const hitGeo = new THREE.CircleGeometry(1.2, 8);
-            const hitMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.0, depthWrite: false });
-            const hitMesh = new THREE.Mesh(hitGeo, hitMat);
-            hitMesh.userData = mesh.userData;
-            mesh.add(hitMesh);
-
-            // Bracket
-            const bracket = new THREE.EdgesGeometry(new THREE.PlaneGeometry(1.8, 1.8));
-            const bLine = new THREE.LineSegments(bracket, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 }));
-            mesh.add(bLine);
-
-            // Trail
-            const trailGeo = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(-Math.random() * 3, -Math.random() * 3, 0)
-            ]);
-            const trailMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.25 });
-            mesh.add(new THREE.Line(trailGeo, trailMat));
-
-            // Lock ring
-            const lockGeo = new THREE.RingGeometry(0.85, 1.05, 32);
-            const lockMat = new THREE.MeshBasicMaterial({ color: 0x00ddff, transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthWrite: false });
-            const lockRing = new THREE.Mesh(lockGeo, lockMat);
-            lockRing.position.z = 0.01;
-            lockRing.visible = false;
-            mesh.add(lockRing);
-
-            mesh.userData.lockRing = lockRing;
-            mesh.userData.isSelected = false;
-
-            // Dest marker
-            const destMarkerGeo = new THREE.CircleGeometry(0.24, 20);
-            const destMarkerMat = new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
-            const destMarker = new THREE.Mesh(destMarkerGeo, destMarkerMat);
-            destMarker.visible = false;
-            destMarker.position.z = 0.08;
-            this.overlayGroup.add(destMarker);
-
-            const destLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0.05), new THREE.Vector3(0, 0, 0.05)]);
-            const destLineMat = new THREE.LineBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.35 });
-            const destLine = new THREE.Line(destLineGeo, destLineMat);
-            destLine.visible = false;
-            this.overlayGroup.add(destLine);
-
-            mesh.userData.destMarker = destMarker;
-            mesh.userData.destLine = destLine;
-
-            this.overlayGroup.add(mesh);
-            this.trackMeshes.push(mesh);
         });
+
+        Object.keys(this.instances).forEach(type => {
+            const inst = this.instances[type];
+            const count = inst.tracks.length;
+            if (count === 0) return;
+            
+            const mat = new THREE.MeshBasicMaterial({ color: this.typeColors[type], transparent: true, opacity: 0.82 });
+            inst.mesh = new THREE.InstancedMesh(this.geometries[type], mat, count);
+            inst.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            inst.mesh.userData = { isTrackInstancedMesh: true, type: type };
+            
+            // Dummy setup to ensure bounding sphere allows raycasting initially
+            const dummy = new THREE.Object3D();
+            for(let i=0; i<count; i++) {
+                dummy.position.set(inst.tracks[i].baseX, inst.tracks[i].baseY, 0.2);
+                dummy.updateMatrix();
+                inst.mesh.setMatrixAt(i, dummy.matrix);
+            }
+            // inst.mesh.geometry.computeBoundingSphere();
+            // inst.mesh.geometry.computeBoundingBox();
+
+            this.overlayGroup.add(inst.mesh);
+        });
+
+        this.setupSelectionVisuals();
+    }
+
+    setupSelectionVisuals() {
+        this.selectionGroup = new THREE.Group();
+        this.selectionGroup.visible = false;
+        this.overlayGroup.add(this.selectionGroup);
+
+        const lockGeo = new THREE.RingGeometry(0.85, 1.05, 32);
+        const lockMat = new THREE.MeshBasicMaterial({ color: 0x00ddff, transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthWrite: false });
+        this.lockRing = new THREE.Mesh(lockGeo, lockMat);
+        this.lockRing.position.z = 0.01;
+        this.selectionGroup.add(this.lockRing);
+
+        const bracketGeo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(1.8, 1.8));
+        this.bracketLine = new THREE.LineSegments(bracketGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1.0 }));
+        this.selectionGroup.add(this.bracketLine);
+
+        const destMarkerGeo = new THREE.CircleGeometry(0.24, 20);
+        const destMarkerMat = new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+        this.destMarker = new THREE.Mesh(destMarkerGeo, destMarkerMat);
+        this.destMarker.visible = false;
+        this.overlayGroup.add(this.destMarker);
+
+        const destLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+        const destLineMat = new THREE.LineBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.35 });
+        this.destLine = new THREE.Line(destLineGeo, destLineMat);
+        this.destLine.visible = false;
+        this.overlayGroup.add(this.destLine);
     }
 
     getTrackData() {
-        return trackData;
+        return this.trackData;
     }
 
     getTrackMeshes() {
-        return this.trackMeshes;
+        return Object.values(this.instances).map(inst => inst.mesh).filter(m => m !== null);
     }
 
     getProvenance(id) {
@@ -121,50 +122,84 @@ export class TrackManager {
     }
 
     updateSelectionVisuals(selectedId) {
-        this.trackMeshes.forEach(m => {
-            const isSelected = m.userData.track.id === selectedId;
-            m.userData.isSelected = isSelected;
-            m.material.opacity = isSelected ? 1.0 : 0.82;
-
-            const bracket = m.children.find(c => c.type === 'LineSegments');
-            if(bracket && bracket.material) {
-                bracket.material.color.setHex(isSelected ? 0xffffff : this.typeColors[m.userData.track.type]);
-                bracket.material.opacity = isSelected ? 1.0 : 0.5;
-                bracket.scale.setScalar(isSelected ? 1.5 : 1.0);
-            }
-
-            if (m.userData.lockRing) {
-                m.userData.lockRing.visible = isSelected;
-                if (!isSelected) {
-                    m.userData.lockRing.material.opacity = 0;
-                    m.userData.lockRing.scale.setScalar(1);
-                }
-            }
-        });
+        // Now handled per-frame in animateTracks
     }
 
     updateDestinationVisuals(selectedId) {
-        this.trackMeshes.forEach(mesh => {
-            const track = mesh.userData.track;
-            const dest = this.trackDestinations[track.id];
-            const marker = mesh.userData.destMarker;
-            const line = mesh.userData.destLine;
-            if(!marker || !line) return;
+        // Now handled per-frame in animateTracks
+    }
 
-            if(!dest) {
-                marker.visible = false;
-                line.visible = false;
-                return;
+    animateTracks(t, skinVal, effectiveMotion, selectedId) {
+        const dummy = new THREE.Object3D();
+        let selectedTrackData = null;
+        let selectedTrackPos = null;
+
+        Object.keys(this.instances).forEach(type => {
+            const inst = this.instances[type];
+            if(!inst.mesh) return;
+            
+            inst.mesh.material.opacity = 0.82 * (1 - skinVal);
+            
+            for(let i = 0; i < inst.tracks.length; i++) {
+                const tr = inst.tracks[i];
+                const drift = tr.t.spd > 0 ? 0.3 : 0.05;
+                const px = tr.baseX + Math.sin(t * 0.3 + tr.offset) * drift * 3;
+                const py = tr.baseY + Math.cos(t * 0.25 + tr.offset) * drift * 3;
+                
+                const timeAngle = t * 0.8 * Math.max(effectiveMotion, 0.08) + tr.offset;
+                
+                dummy.position.set(px, py, 0.2);
+                dummy.rotation.set(0, 0, timeAngle);
+                
+                const isSelected = tr.t.id === selectedId;
+                const sc = isSelected ? 1.15 + Math.sin(t * 3 + tr.offset) * 0.12 : 1 + Math.sin(t * 2 + tr.offset) * 0.15;
+                dummy.scale.setScalar(sc);
+                
+                dummy.updateMatrix();
+                inst.mesh.setMatrixAt(i, dummy.matrix);
+                
+                if (isSelected) {
+                    selectedTrackData = tr.t;
+                    selectedTrackPos = { x: px, y: py };
+                    
+                    this.selectionGroup.position.set(px, py, 0.2);
+                    this.selectionGroup.scale.setScalar(sc);
+                    
+                    const pulse = (Math.sin(t * 7) + 1) * 0.5;
+                    this.lockRing.material.opacity = (0.18 + pulse * 0.35) * (1 - skinVal);
+                    this.lockRing.scale.setScalar(1.0 + pulse * 0.28);
+                    this.bracketLine.material.opacity = 1.0 * (1 - skinVal);
+                    this.bracketLine.material.color = this.typeColors[type];
+                }
             }
-
-            marker.visible = true;
-            marker.position.set(dest.x, dest.y, 0.08);
-            line.visible = true;
-            line.geometry.setFromPoints([
-                new THREE.Vector3(mesh.position.x, mesh.position.y, 0.06),
-                new THREE.Vector3(dest.x, dest.y, 0.06)
-            ]);
-            if(line.material) line.material.opacity = mesh.userData.isSelected ? 0.8 : 0.35;
+            inst.mesh.instanceMatrix.needsUpdate = true;
+            if(inst.mesh.geometry.boundingSphere === null) {
+                inst.mesh.geometry.computeBoundingSphere();
+            }
         });
+
+        if (!selectedId || !selectedTrackPos) {
+            this.selectionGroup.visible = false;
+            this.destMarker.visible = false;
+            this.destLine.visible = false;
+        } else {
+            this.selectionGroup.visible = true;
+            this.lockRing.visible = true;
+            
+            const dest = this.trackDestinations[selectedId];
+            if (dest) {
+                this.destMarker.position.set(dest.x, dest.y, 0.08);
+                this.destMarker.visible = true;
+                this.destLine.geometry.setFromPoints([
+                    new THREE.Vector3(selectedTrackPos.x, selectedTrackPos.y, 0.06),
+                    new THREE.Vector3(dest.x, dest.y, 0.06)
+                ]);
+                this.destLine.material.opacity = 0.8 * (1 - skinVal);
+                this.destLine.visible = true;
+            } else {
+                this.destMarker.visible = false;
+                this.destLine.visible = false;
+            }
+        }
     }
 }

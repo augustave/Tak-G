@@ -3,24 +3,42 @@ export const fallbackDecoyProfiles = [
     { id: 'dji-test', displayName: 'DJI Test', startString: 'DJITEST-', endString: 'AAAAAAAA', macPrefixes: ['481CB9', '60601F', 'E47A2C', '34D262', 'F41A79'] }
 ];
 
+export const sources = ['MTI-GEO', 'SAR-SAT', 'HUMINT', 'ELINT-ESM', 'VISUAL-EO'];
+export const confidences = ['HIGH', 'MEDIUM', 'LOW'];
+
+const types = ['hostile', 'friendly', 'unknown'];
+const subtypes = {
+    hostile: ['ARMOR', 'MECH INF', 'ADA', 'MLRS', 'LOG', 'C2', 'UAS SWARM'],
+    friendly: ['MEU', 'CAV', 'SOF', 'FIRES', 'UAS SWARM'],
+    unknown: ['CONVOY', 'ROTARY', 'CIV', 'UAS SWARM']
+};
+
 export const trackData = [
     { id: 'TK-4071', type: 'hostile', subtype: 'ARMOR', x: -12, y: 8, spd: 22 },
     { id: 'TK-4072', type: 'hostile', subtype: 'MECH INF', x: 15, y: -5, spd: 35 },
     { id: 'TK-4073', type: 'hostile', subtype: 'ADA', x: -5, y: -18, spd: 0 },
     { id: 'TK-4074', type: 'hostile', subtype: 'MLRS', x: 18, y: 12, spd: 0 },
-    { id: 'TK-4075', type: 'hostile', subtype: 'LOG', x: -20, y: -8, spd: 40 },
     { id: 'BF-1001', type: 'friendly', subtype: 'MEU', x: -8, y: 20, spd: 15 },
-    { id: 'BF-1002', type: 'friendly', subtype: 'CAV', x: 5, y: 15, spd: 45 },
-    { id: 'BF-1003', type: 'friendly', subtype: 'SOF', x: -3, y: -5, spd: 8 },
-    { id: 'UK-7001', type: 'unknown', subtype: 'CONVOY', x: 25, y: -15, spd: 55 },
-    { id: 'UK-7002', type: 'unknown', subtype: 'ROTARY', x: -15, y: 25, spd: 120 },
-    { id: 'TK-4076', type: 'hostile', subtype: 'C2', x: 10, y: -20, spd: 0 },
-    { id: 'BF-1004', type: 'friendly', subtype: 'FIRES', x: -25, y: 12, spd: 0 },
+    { id: 'UK-7001', type: 'unknown', subtype: 'CONVOY', x: 25, y: -15, spd: 55 }
 ];
 
-export const sources = ['MTI-GEO', 'SAR-SAT', 'HUMINT', 'ELINT-ESM', 'VISUAL-EO'];
-
-export const confidences = ['HIGH', 'MEDIUM', 'LOW'];
+// Phase 5 Performance Test: Inject 1,500 Swarm Drones 
+for (let i = 0; i < 1500; i++) {
+    const r = Math.random();
+    const type = r > 0.6 ? 'friendly' : (r > 0.3 ? 'hostile' : 'unknown');
+    const st = subtypes[type];
+    const subtype = st[Math.floor(Math.random() * st.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * 40;
+    trackData.push({
+        id: `SW-${1000 + i}`,
+        type: type,
+        subtype: subtype,
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+        spd: Math.random() * 120
+    });
+}
 
 export const sigintMessages = [
     { tag: 'intel', text: 'INTERCEPT: TK-4074 MLRS battery emitting targeting radar — potential fire mission imminent' },
@@ -34,8 +52,8 @@ export const sigintMessages = [
     { tag: 'intel', text: 'ELINT: VHF comms spike across AOR — possible coordination for counter-attack' },
     { tag: 'warn', text: 'NOTAM: ROZ-BRAVO extended to 2200Z — all friendly air re-route via CP WHISKEY' },
     { tag: 'info', text: 'REAPER 31: FUEL STATE BINGO-30 — request tanker or relief on station' },
-    { tag: 'crit', text: 'JSTARS: LARGE FORMATION 15km NE of AOR — est BTN(+) size element moving SW' },
+    { tag: 'crit', text: 'JSTARS: MASSIVE SWARM DETECTED — 1000+ UAS signatures launching across AOR' },
     { tag: 'intel', text: 'HUMINT RPT: civilian evacuation corridor compromised — IED activity grid 38TLN 04900 17100' },
     { tag: 'warn', text: 'AAA BELT assessed active — ZSU-23 positions along ridgeline BRAVO' },
-    { tag: 'info', text: 'BF-1004 FIRES: M142 READY — TGT LIST UPDATED — 3 priority targets in queue' },
+    { tag: 'info', text: 'BF-1004 FIRES: M142 READY — TGT LIST UPDATED — 3 priority targets in queue' }
 ];

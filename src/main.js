@@ -41,10 +41,12 @@ window.addEventListener('mousedown', e => {
     mClick.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mClick, mapEngine.camera);
     
-    const trackHits = raycaster.intersectObjects(trackManager.getTrackMeshes(), true);
+    const trackHits = raycaster.intersectObjects(trackManager.getTrackMeshes(), false);
     if(trackHits.length > 0) {
-        for (const hit of trackHits) {
-            const track = getTrackFromObject(hit.object);
+        const hit = trackHits[0];
+        const type = hit.object.userData.type;
+        if(type && trackManager.instances[type]) {
+            const track = trackManager.instances[type].tracks[hit.instanceId].t;
             if(track) {
                 domController.selectTrack(track.id);
                 return;
@@ -256,34 +258,7 @@ function animate(ts) {
     mapEngine.radarMesh.rotation.z -= 0.015 * Math.max(effectiveMotion, 0.08);
 
     const selectedTrackId = store.get('selectedTrackId');
-    trackManager.getTrackMeshes().forEach(m => {
-        const d = m.userData;
-        const drift = d.track.spd > 0 ? 0.3 : 0.05;
-        m.position.x = d.baseX + Math.sin(t * 0.3 + d.offset) * drift * 3;
-        m.position.y = d.baseY + Math.cos(t * 0.25 + d.offset) * drift * 3;
-        const isSelected = Boolean(d.isSelected);
-        const sc = isSelected ? 1.15 + Math.sin(t * 3 + d.offset) * 0.12 : 1 + Math.sin(t * 2 + d.offset) * 0.15;
-        m.scale.set(sc, sc, 1);
-        if(m.material) {
-            const mult = isSelected ? 1.25 : 0.95;
-            m.material.opacity = Math.min(1, d.baseOp * (1 - skinVal) * mult);
-        }
-        if(d.lockRing && d.lockRing.material) {
-            if(isSelected) {
-                const pulse = (Math.sin(t * 7) + 1) * 0.5;
-                d.lockRing.visible = true;
-                d.lockRing.material.opacity = (0.18 + pulse * 0.35) * (1 - skinVal);
-                d.lockRing.scale.setScalar(1.0 + pulse * 0.28);
-            } else {
-                d.lockRing.visible = false;
-                d.lockRing.material.opacity = 0;
-                d.lockRing.scale.setScalar(1);
-            }
-        }
-        if(m.children[0]) m.children[0].rotation.z += 0.008 * Math.max(effectiveMotion, 0.08);
-    });
-
-    trackManager.updateDestinationVisuals(selectedTrackId);
+    trackManager.animateTracks(t, skinVal, effectiveMotion, selectedTrackId);
 
     const camAngle = t * 0.06;
     mapEngine.camera.position.x = Math.sin(camAngle) * 6 + Math.sin(t * 1.7) * 0.15;
