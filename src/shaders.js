@@ -101,15 +101,58 @@ export const mapFS = `
         if (uSkinMode < 0.99) {
             float grit = random(vUv * 500.0);
             
-            // Satellite terrain
-            float terrain = warpedFbm(vUv * 4.0, time);
-            vec3 terrainColor = mix(
-                vec3(0.22, 0.28, 0.24),
-                vec3(0.45, 0.50, 0.42),
-                terrain
-            );
+            // 1. Elevation (Heightmap)
+            float elevation = warpedFbm(vUv * 4.0, time);
             
-            // Urban structures
+            // 2. Fake Normals (Bump Mapping)
+            // Calculate a normal vector from the height derivative
+            vec2 e = vec2(0.005, 0.0);
+            float hX = warpedFbm((vUv + e.xy) * 4.0, time);
+            float hY = warpedFbm((vUv + e.yx) * 4.0, time);
+            vec3 normal = normalize(vec3(elevation - hX, elevation - hY, 0.02));
+            
+            // 3. Lighting
+            vec3 lightDir = normalize(vec3(0.5, 0.8, 0.6)); // Light from top right
+            float diff = max(dot(normal, lightDir), 0.0);
+            float lightIntensity = diff * 0.7 + 0.5; // ambient + diffuse
+            
+            // 4. Topographical Tiers
+            vec3 terrainColor;
+            
+            // Water (Lowest tier)
+            float waterMask = step(elevation, 0.35);
+            vec3 deepWater = vec3(0.10, 0.16, 0.18);
+            vec3 shallowWater = vec3(0.18, 0.28, 0.26);
+            vec3 waterColor = mix(deepWater, shallowWater, elevation / 0.35);
+            // Add slight time-based ripple to water normals
+            if(elevation < 0.35) {
+                float ripple = fbm(vUv * 20.0 + time * 0.05);
+                waterColor += ripple * 0.04;
+                lightIntensity = max(dot(normalize(normal + vec3(ripple*0.02, ripple*0.02, 0.0)), lightDir), 0.0) * 0.5 + 0.6;
+            }
+
+            // Coastline / Sand
+            float coastMask = step(0.35, elevation) * step(elevation, 0.38);
+            vec3 coastColor = mix(vec3(0.40, 0.42, 0.35), vec3(0.35, 0.38, 0.32), (elevation - 0.35) * 33.3);
+            
+            // Lowlands / Grass
+            float lowMask = step(0.38, elevation) * step(elevation, 0.65);
+            vec3 lowColor = mix(vec3(0.22, 0.28, 0.24), vec3(0.30, 0.35, 0.28), (elevation - 0.38) * 3.7);
+            
+            // Highlands / Rock
+            float highMask = step(0.65, elevation);
+            vec3 highColor = mix(vec3(0.45, 0.43, 0.40), vec3(0.65, 0.62, 0.60), (elevation - 0.65) * 2.8);
+            
+            terrainColor = waterColor * waterMask + 
+                           coastColor * coastMask + 
+                           lowColor * lowMask + 
+                           highColor * highMask;
+
+            // Apply global terrain lighting
+            terrainColor *= lightIntensity;
+            
+            // 5. Urban structures
+            // Only place cities on flat ground (lowlands), not in water or mountains
             vec2 gridUv = vUv * 20.0;
             vec2 id = floor(gridUv);
             float tileN = random(id);
@@ -117,28 +160,34 @@ export const mapFS = `
             float bx = step(0.96, gl2.x) + step(gl2.x, 0.04);
             float by = step(0.96, gl2.y) + step(gl2.y, 0.04);
             float isBorder = clamp(bx + by, 0.0, 1.0);
-            float isBuilding = step(0.65, tileN);
+            
+            // Clusters: use low-freq FBM to group cities together
+            float cityCluster = fbm(vUv * 6.0);
+            float isBuildingMask = step(0.65, tileN) * step(0.55, cityCluster) * lowMask; 
+            
             vec3 buildingColor = mix(vec3(0.35, 0.38, 0.40), vec3(0.55, 0.58, 0.60), random(id + 10.0));
             buildingColor = mix(buildingColor, vec3(0.2, 0.22, 0.24), isBorder);
             
-            // Roads
+            // 6. Roads
+            // Make roads conform roughly to land, break over water
             float road1 = smoothstep(0.02, 0.0, abs(fract(vUv.x * 5.0) - 0.5));
             float road2 = smoothstep(0.02, 0.0, abs(fract(vUv.y * 5.0 + 0.25) - 0.5));
-            float roads = clamp(road1 + road2, 0.0, 1.0);
-            vec3 roadColor = vec3(0.3, 0.32, 0.35);
+            float roads = clamp(road1 + road2, 0.0, 1.0) * (1.0 - waterMask);
+            vec3 roadColor = vec3(0.25, 0.27, 0.30);
 
-            // Aerial photo patches (wartime damage / bare earth)
+            // 7. Aerial photo patches (wartime damage / bare earth)
+            // Limit to landmasses
             float photoShape = fbm(vUv * 3.0 + fbm(vUv * 15.0) * 0.15);
-            float photoMask = step(0.48, photoShape);
+            float photoMask = step(0.55, photoShape) * (1.0 - waterMask);
             float trenchL = smoothstep(0.012, 0.0, abs(fbm(vUv * 14.0 + vec2(time*0.0005)) - 0.5)) * step(0.4, fbm(vUv * 40.0));
-            vec3 photoColor = mix(vec3(0.08, 0.09, 0.10), vec3(0.65, 0.62, 0.58), trenchL) - grit * 0.12;
+            vec3 photoColor = mix(vec3(0.18, 0.16, 0.14), vec3(0.45, 0.42, 0.38), trenchL) - grit * 0.12;
             
             // Compose
             vec3 col = terrainColor;
-            col = mix(col, buildingColor, isBuilding * (1.0 - roads));
+            col = mix(col, buildingColor, isBuildingMask * (1.0 - roads));
             col = mix(col, roadColor, roads * 0.6);
-            col = mix(col, photoColor, photoMask * 0.7);
-            col -= grit * 0.06;
+            col = mix(col, photoColor, photoMask * 0.6);
+            col -= grit * 0.08;
             
             // SAM zones (red tint)
             col = mix(col, vec3(0.8, 0.1, 0.1), clamp(samOverlay, 0.0, 0.3));
