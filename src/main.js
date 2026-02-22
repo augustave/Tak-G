@@ -6,6 +6,7 @@ import { OpsLog } from './core/OpsLog.js';
 import { DecoySim } from './core/DecoySim.js';
 import { HUDController } from './core/HUDController.js';
 import { DOMController } from './core/DOMController.js';
+import { DrawController } from './core/DrawController.js';
 
 // Setup Map
 const container = document.getElementById('canvas-container');
@@ -18,6 +19,7 @@ const decoySim = new DecoySim(sigintFeed, opsLog);
 const hudController = new HUDController();
 const trackManager = new TrackManager(mapEngine.overlayGroup);
 const domController = new DOMController(trackManager, opsLog);
+const drawController = new DrawController(mapEngine.scene, mapEngine.overlayGroup);
 
 // Logic: Interactions
 const raycaster = new THREE.Raycaster();
@@ -41,6 +43,16 @@ window.addEventListener('mousedown', e => {
     mClick.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mClick, mapEngine.camera);
     
+    // Draw Mode Intercept
+    if(drawController.isDrawing) {
+        const mapHits = raycaster.intersectObject(mapEngine.mapMesh);
+        if(mapHits.length > 0) {
+            const localPoint = mapEngine.overlayGroup.worldToLocal(mapHits[0].point.clone());
+            drawController.addPoint(localPoint);
+        }
+        return; // Prevent normal map interactions while drawing
+    }
+
     const trackHits = raycaster.intersectObjects(trackManager.getTrackMeshes(), false);
     if(trackHits.length > 0) {
         const hit = trackHits[0];
@@ -101,6 +113,20 @@ window.addEventListener('mousedown', e => {
         const p = mapHits[0].point;
         mapEngine.explosions[window.expIdx || 0].set(p.x, p.z, 0.01);
         window.expIdx = ((window.expIdx || 0) + 1) % 8;
+    }
+});
+
+window.addEventListener('mousemove', e => {
+    if(!drawController.isDrawing) return;
+    
+    mClick.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mClick.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mClick, mapEngine.camera);
+    
+    const mapHits = raycaster.intersectObject(mapEngine.mapMesh);
+    if(mapHits.length > 0) {
+        const localPoint = mapEngine.overlayGroup.worldToLocal(mapHits[0].point.clone());
+        drawController.updatePreview(localPoint);
     }
 });
 
