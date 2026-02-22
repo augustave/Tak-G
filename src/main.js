@@ -269,13 +269,19 @@ function animate(ts) {
     const heading = (camAngle * 180 / Math.PI) % 360;
     if(compassNeedle) compassNeedle.style.transform = `translate(-50%, -100%) rotate(${-heading}deg)`;
 
-    mapEngine.renderer.render(mapEngine.scene, mapEngine.camera);
+    // Post-processing overrides based on skin
+    mapEngine.bloomPass.strength = 1.5 * (1 - skinVal);
+    mapEngine.filmPass.uniforms.nIntensity.value = 1.2 * skinVal;
+    mapEngine.filmPass.uniforms.sIntensity.value = 1.8 * skinVal;
+
+    mapEngine.composer.render();
 }
 
 window.addEventListener('resize', () => {
     mapEngine.camera.aspect = window.innerWidth / window.innerHeight;
     mapEngine.camera.updateProjectionMatrix();
     mapEngine.renderer.setSize(window.innerWidth, window.innerHeight);
+    mapEngine.composer.setSize(window.innerWidth, window.innerHeight);
     if(window.innerWidth > 1100) hudController.closeDrawers();
 });
 

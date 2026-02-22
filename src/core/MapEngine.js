@@ -79,5 +79,16 @@ export function setupMapEngine(container) {
         overlayGroup.add(ring);
     });
 
-    return { scene, camera, renderer, mapMesh, overlayGroup, radarMesh, uniforms, explosions };
+    // POST-PROCESSING Pipeline
+    const renderScene = new THREE.RenderPass(scene, camera);
+    const composer = new THREE.EffectComposer(renderer);
+    composer.addPass(renderScene);
+
+    const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.4, 0.85);
+    composer.addPass(bloomPass);
+
+    const filmPass = new THREE.FilmPass(0.8, 1.2, 1024, false);
+    composer.addPass(filmPass);
+
+    return { scene, camera, renderer, composer, bloomPass, filmPass, mapMesh, overlayGroup, radarMesh, uniforms, explosions };
 }
