@@ -44,7 +44,9 @@ export class TrackManager {
             const count = inst.tracks.length;
             if (count === 0) return;
             
-            const mat = new THREE.MeshBasicMaterial({ color: this.typeColors[type], transparent: true, opacity: 0.82 });
+            // Dim unknown tracks significantly so they are less dense/distracting on the terrain
+            const baseOpacity = type === 'unknown' ? 0.25 : 0.82;
+            const mat = new THREE.MeshBasicMaterial({ color: this.typeColors[type], transparent: true, opacity: baseOpacity });
             inst.mesh = new THREE.InstancedMesh(this.geometries[type], mat, count);
             inst.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
             inst.mesh.userData = { isTrackInstancedMesh: true, type: type };

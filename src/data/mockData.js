@@ -25,7 +25,8 @@ export const trackData = [
 // Phase 5 Performance Test: Inject 1,500 Swarm Drones 
 for (let i = 0; i < 1500; i++) {
     const r = Math.random();
-    const type = r > 0.6 ? 'friendly' : (r > 0.3 ? 'hostile' : 'unknown');
+    // Reduce unknown spawning significantly (now only 10% instead of 30%)
+    const type = r > 0.55 ? 'friendly' : (r > 0.10 ? 'hostile' : 'unknown');
     const st = subtypes[type];
     const subtype = st[Math.floor(Math.random() * st.length)];
     const angle = Math.random() * Math.PI * 2;
