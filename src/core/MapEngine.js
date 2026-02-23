@@ -31,6 +31,7 @@ export function setupMapEngine(container) {
         time: { value: 0 },
         uExplosions: { value: explosions },
         uSkinMode: { value: 0 },
+        uMapMode: { value: 1.0 },
         uSAMPositions: { value: samPositions },
         uSAMRadii: { value: samRadii }
     };

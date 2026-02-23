@@ -255,8 +255,10 @@ function animate(ts) {
     const t = simTime;
 
     const targetSkin = store.get('skinMode');
+    const targetMap = store.get('mapMode');
     mapEngine.uniforms.time.value = t;
     mapEngine.uniforms.uSkinMode.value = THREE.MathUtils.lerp(mapEngine.uniforms.uSkinMode.value, targetSkin, 0.04);
+    mapEngine.uniforms.uMapMode.value = THREE.MathUtils.lerp(mapEngine.uniforms.uMapMode.value, targetMap, 0.08);
     const skinVal = mapEngine.uniforms.uSkinMode.value;
 
     const activeTrackPanel = document.getElementById('active-track-panel');

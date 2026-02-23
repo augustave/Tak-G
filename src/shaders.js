@@ -14,7 +14,8 @@ export const mapFS = `
     varying vec3 vWorldPos;
     uniform float time;
     uniform vec3 uExplosions[8];
-    uniform float uSkinMode;
+    uniform float uSkinMode; // 0 = standard tactical, 1 = archival scan
+    uniform float uMapMode;  // 1.0 = Topo, 0.0 = Flat
     uniform vec3 uSAMPositions[3];
     uniform float uSAMRadii[3];
 
@@ -148,7 +149,8 @@ export const mapFS = `
                            lowColor * lowMask + 
                            highColor * highMask;
 
-            // Apply global terrain lighting
+            // Apply global terrain lighting (fade out if in FLAT mode)
+            lightIntensity = mix(1.0, lightIntensity, uMapMode);
             terrainColor *= lightIntensity;
             
             // 5. Urban structures
@@ -163,7 +165,7 @@ export const mapFS = `
             
             // Clusters: use low-freq FBM to group cities together
             float cityCluster = fbm(vUv * 6.0);
-            float isBuildingMask = step(0.85, tileN) * step(0.65, cityCluster) * lowMask; 
+            float isBuildingMask = step(0.85, tileN) * step(0.65, cityCluster) * lowMask * uMapMode; 
             
             vec3 buildingColor = mix(vec3(0.25, 0.28, 0.30), vec3(0.25, 0.28, 0.30), random(id + 10.0));
             buildingColor = mix(buildingColor, vec3(0.2, 0.22, 0.24), isBorder);
@@ -172,13 +174,13 @@ export const mapFS = `
             // Make roads conform roughly to land, break over water
             float road1 = smoothstep(0.02, 0.0, abs(fract(vUv.x * 5.0) - 0.5));
             float road2 = smoothstep(0.02, 0.0, abs(fract(vUv.y * 5.0 + 0.25) - 0.5));
-            float roads = clamp(road1 + road2, 0.0, 1.0) * (1.0 - waterMask);
+            float roads = clamp(road1 + road2, 0.0, 1.0) * (1.0 - waterMask) * uMapMode;
             vec3 roadColor = vec3(0.25, 0.27, 0.30);
 
             // 7. Aerial photo patches (wartime damage / bare earth)
             // Limit to landmasses
             float photoShape = fbm(vUv * 3.0 + fbm(vUv * 15.0) * 0.15);
-            float photoMask = step(0.55, photoShape) * (1.0 - waterMask);
+            float photoMask = step(0.7 + fbm(vUv * 8.0) * 0.1, photoShape) * (1.0 - waterMask) * uMapMode;
             float trenchL = smoothstep(0.012, 0.0, abs(fbm(vUv * 14.0 + vec2(time*0.0005)) - 0.5)) * step(0.4, fbm(vUv * 40.0));
             vec3 photoColor = mix(vec3(0.18, 0.16, 0.14), vec3(0.45, 0.42, 0.38), trenchL) - grit * 0.12;
             

@@ -12,6 +12,7 @@ export class Store {
             reduceMotion: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
             simTime: 0,
             skinMode: 0, // 0 = tactical, 1 = archival
+            mapMode: 1, // 1 = topo, 0 = flat
             decoySim: {
                 running: false,
                 activeDecoys: [],

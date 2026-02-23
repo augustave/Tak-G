@@ -89,6 +89,16 @@ export class DOMController {
 
         this.undoButton?.addEventListener('click', () => this.undoLastDesignation());
 
+        const btnMap = document.getElementById('btn-map');
+        if(btnMap) {
+            btnMap.addEventListener('click', () => {
+                const isTopo = store.get('mapMode') === 1;
+                store.set('mapMode', isTopo ? 0 : 1);
+                btnMap.textContent = isTopo ? 'MAP: FLAT' : 'MAP: TOPO';
+                btnMap.classList.toggle('active', !isTopo);
+            });
+        }
+
         document.addEventListener('mousemove', e => {
             if(!this.cursorCoords || !this.cursorMgrs) return;
             const mx = ((e.clientX / window.innerWidth) * 2 - 1) * 40;
