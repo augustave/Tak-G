@@ -163,9 +163,9 @@ export const mapFS = `
             
             // Clusters: use low-freq FBM to group cities together
             float cityCluster = fbm(vUv * 6.0);
-            float isBuildingMask = step(0.65, tileN) * step(0.55, cityCluster) * lowMask; 
+            float isBuildingMask = step(0.85, tileN) * step(0.65, cityCluster) * lowMask; 
             
-            vec3 buildingColor = mix(vec3(0.35, 0.38, 0.40), vec3(0.55, 0.58, 0.60), random(id + 10.0));
+            vec3 buildingColor = mix(vec3(0.25, 0.28, 0.30), vec3(0.25, 0.28, 0.30), random(id + 10.0));
             buildingColor = mix(buildingColor, vec3(0.2, 0.22, 0.24), isBorder);
             
             // 6. Roads
