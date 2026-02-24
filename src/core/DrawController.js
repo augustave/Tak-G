@@ -136,6 +136,7 @@ export class DrawController {
         const zoneGroup = new THREE.Group();
         zoneGroup.add(fillMesh);
         zoneGroup.add(outlineMesh);
+        zoneGroup.userData.isTerrainFeature = true;
         
         this.overlayGroup.add(zoneGroup);
         this.zones.push(zoneGroup);

@@ -272,7 +272,15 @@ function animate(ts) {
                 child.userData.baseOp = child.material.opacity;
                 child.material.transparent = true;
             }
-            child.material.opacity = child.userData.baseOp * (1 - skinVal);
+            
+            let finalOpacity = child.userData.baseOp * (1 - skinVal);
+            
+            // Fade out drawn polygons when in FLAT map mode
+            if (child.parent && child.parent.userData.isTerrainFeature) {
+                finalOpacity *= mapEngine.uniforms.uMapMode.value;
+            }
+            
+            child.material.opacity = finalOpacity;
         }
     });
 

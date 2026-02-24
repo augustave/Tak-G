@@ -9,9 +9,27 @@ export class TrackManager {
         this.typeColors = { hostile: new THREE.Color(0xff3333), friendly: new THREE.Color(0x4a9eff), unknown: new THREE.Color(0xffcc00) };
         
         this.geometries = {
-            hostile: new THREE.ShapeGeometry((() => { const s = new THREE.Shape(); s.moveTo(0, -0.6); s.lineTo(-0.5, 0.4); s.lineTo(0.5, 0.4); s.closePath(); return s; })()),
-            friendly: new THREE.CircleGeometry(0.4, 16),
-            unknown: new THREE.ShapeGeometry((() => { const s = new THREE.Shape(); s.moveTo(0, 0.5); s.lineTo(0.5, 0); s.lineTo(0, -0.5); s.lineTo(-0.5, 0); s.closePath(); return s; })())
+            // Hostile: Diamond with a tail
+            hostile: new THREE.ShapeGeometry((() => { 
+                const s = new THREE.Shape(); 
+                s.moveTo(0, -0.6); s.lineTo(-0.5, 0.4); s.lineTo(0, 0.2); s.lineTo(0.5, 0.4); s.closePath(); 
+                return s; 
+            })()),
+            
+            // Friendly: Circle with a tail
+            friendly: new THREE.ShapeGeometry((() => { 
+                const s = new THREE.Shape(); 
+                s.absarc(0, 0, 0.4, 0, Math.PI * 2, false);
+                s.moveTo(-0.2, 0.35); s.lineTo(0, 0.8); s.lineTo(0.2, 0.35); // Tail pointing "back"
+                return s; 
+            })()),
+            
+            // Unknown: Square with a tail
+            unknown: new THREE.ShapeGeometry((() => { 
+                const s = new THREE.Shape(); 
+                s.moveTo(0, 0.5); s.lineTo(0.5, 0); s.lineTo(0.2, -0.3); s.lineTo(0, -0.8); s.lineTo(-0.2, -0.3); s.lineTo(-0.5, 0); s.closePath(); 
+                return s; 
+            })())
         };
         
         this.instances = {
