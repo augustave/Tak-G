@@ -57,6 +57,29 @@ export class DOMController {
             this.setDestinationButtonEl.textContent = this.destinationMode ? 'CLICK MAP...' : 'SET DEST';
         });
 
+        const btnRecon = document.getElementById('btn-recon');
+        btnRecon?.addEventListener('click', () => {
+            const selectedId = store.get('selectedTrackId');
+            if(!selectedId) {
+                this.opsLog.addEntry('MODE', 'SYSTEM', 'RECON MODE REQUIRES TRACK SELECT');
+                return;
+            }
+            const isRecon = !store.get('reconMode');
+            store.set('reconMode', isRecon);
+            
+            if (isRecon) {
+                this.opsLog.addEntry('MODE', '3DGS', `INITIATING SPLAT RECON ON [${selectedId}]`);
+                btnRecon.textContent = 'EXIT RECON';
+                btnRecon.style.background = 'var(--red-force)';
+                btnRecon.style.color = '#fff';
+            } else {
+                this.opsLog.addEntry('MODE', 'SYSTEM', `TERMINATING SPLAT RECON ON [${selectedId}]`);
+                btnRecon.textContent = 'RECON [3DGS]';
+                btnRecon.style.background = 'var(--amber-alert)';
+                btnRecon.style.color = '#000';
+            }
+        });
+
         this.clearDestinationButtonEl?.addEventListener('click', () => {
             const selectedId = store.get('selectedTrackId');
             if(!selectedId) return;
@@ -137,8 +160,16 @@ export class DOMController {
             this.setDestinationButtonEl.disabled = true;
             this.clearDestinationButtonEl.disabled = true;
             this.destinationMode = false;
+            store.set('reconMode', false);
             this.setDestinationButtonEl.classList.remove('active');
             this.setDestinationButtonEl.textContent = 'SET DEST';
+            
+            const btnRecon = document.getElementById('btn-recon');
+            if (btnRecon) {
+                btnRecon.textContent = 'RECON [3DGS]';
+                btnRecon.style.background = 'var(--amber-alert)';
+                btnRecon.style.color = '#000';
+            }
             return;
         }
 

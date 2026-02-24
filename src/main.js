@@ -7,6 +7,7 @@ import { DecoySim } from './core/DecoySim.js';
 import { HUDController } from './core/HUDController.js';
 import { DOMController } from './core/DOMController.js';
 import { DrawController } from './core/DrawController.js';
+import { SplatController } from './core/SplatController.js';
 
 // Setup Map
 const container = document.getElementById('canvas-container');
@@ -20,6 +21,7 @@ const hudController = new HUDController();
 const trackManager = new TrackManager(mapEngine.overlayGroup);
 const domController = new DOMController(trackManager, opsLog);
 const drawController = new DrawController(mapEngine.scene, mapEngine.overlayGroup);
+const splatController = new SplatController(mapEngine.scene, mapEngine.overlayGroup);
 
 // Logic: Interactions
 const raycaster = new THREE.Raycaster();
@@ -294,14 +296,27 @@ function animate(ts) {
     mapEngine.radarMesh.rotation.z -= 0.015 * Math.max(effectiveMotion, 0.08);
 
     const selectedTrackId = store.get('selectedTrackId');
+    const reconMode = store.get('reconMode');
+    
     trackManager.animateTracks(t, skinVal, effectiveMotion, selectedTrackId);
+    splatController.animate(t, trackManager, mapEngine.camera);
 
     const camAngle = t * 0.06;
-    mapEngine.camera.position.x = Math.sin(camAngle) * 6 + Math.sin(t * 1.7) * 0.15;
-    mapEngine.camera.position.z = 33 + Math.cos(camAngle * 0.8) * 4;
-    mapEngine.camera.position.y = 45 + Math.sin(t * 0.4) * 1.5;
-    mapEngine.camera.lookAt(Math.sin(t * 0.08) * 2, 0, Math.cos(t * 0.06) * 2);
-
+    
+    // Camera Logic
+    if (reconMode && splatController.isActive && splatController.targetPos) {
+        // Zoom in to tracking view
+        const target = splatController.targetPos;
+        mapEngine.camera.position.lerp(new THREE.Vector3(target.x + Math.sin(t*0.5)*8, 12, target.z + Math.cos(t*0.5)*8), 0.04);
+        mapEngine.camera.lookAt(target);
+        
+        mapEngine.uniforms.uMapMode.value = THREE.MathUtils.lerp(mapEngine.uniforms.uMapMode.value, 0.0, 0.1); // flatten terrain
+    } else {
+        // Macro view
+        mapEngine.camera.position.lerp(new THREE.Vector3(Math.sin(camAngle) * 6 + Math.sin(t * 1.7) * 0.15, 45 + Math.sin(t * 0.4) * 1.5, 33 + Math.cos(camAngle * 0.8) * 4), 0.04);
+        mapEngine.camera.lookAt(Math.sin(t * 0.08) * 2, 0, Math.cos(t * 0.06) * 2);
+    }
+    
     const heading = (camAngle * 180 / Math.PI) % 360;
     if(compassNeedle) compassNeedle.style.transform = `translate(-50%, -100%) rotate(${-heading}deg)`;
 

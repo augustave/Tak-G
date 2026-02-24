@@ -13,6 +13,7 @@ export class Store {
             simTime: 0,
             skinMode: 0, // 0 = tactical, 1 = archival
             mapMode: 1, // 1 = topo, 0 = flat
+            reconMode: false,
             decoySim: {
                 running: false,
                 activeDecoys: [],
