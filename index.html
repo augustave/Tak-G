@@ -137,18 +137,35 @@
         </div>
 
         <!-- TRACK TABLE -->
-        <div class="panel" style="flex: 1 1 auto; overflow: hidden;">
-            <div class="panel-header">
+        <div class="panel" style="flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="panel-header" style="flex: 0 0 auto;">
                 <span class="panel-title">TRACK LOG</span>
                 <span class="panel-badge badge-alert" id="track-count">12 ACTIVE</span>
             </div>
-            <div class="panel-body" style="padding: 4px 8px; overflow-y: auto; max-height: 220px;">
-                <table class="track-table" id="track-table">
-                    <thead>
-                        <tr><th>ID</th><th>TYPE</th><th>BRG</th><th>RNG</th><th>SPD</th><th>TRUST</th></tr>
-                    </thead>
-                    <tbody id="track-tbody"></tbody>
-                </table>
+            <div class="panel-body" style="padding: 4px 8px; flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden;">
+                <div style="display: flex; gap: 4px; margin-bottom: 4px; flex: 0 0 auto;">
+                    <input type="text" id="track-search" class="ops-export-btn" style="flex: 1; text-align: left; padding: 2px 4px; outline: none; border: 1px solid var(--panel-border);" placeholder="SEARCH ID...">
+                    <select id="track-filter" class="ops-export-btn" style="width: 80px; padding: 2px; outline: none; border: 1px solid var(--panel-border);">
+                        <option value="ALL">ALL</option>
+                        <option value="HIGH">HIGH TGT</option>
+                        <option value="MEDIUM">MED TGT</option>
+                        <option value="LOW">LOW TGT</option>
+                    </select>
+                </div>
+                <div style="flex: 1 1 auto; overflow-y: auto;">
+                    <table class="track-table" id="track-table">
+                        <thead>
+                            <tr>
+                                <th data-sort="id" style="cursor: pointer;">ID ▾</th>
+                                <th data-sort="type" style="cursor: pointer;">TYPE ▾</th>
+                                <th data-sort="rng" style="cursor: pointer;">RNG ▾</th>
+                                <th data-sort="spd" style="cursor: pointer;">SPD ▾</th>
+                                <th>TRUST</th>
+                            </tr>
+                        </thead>
+                        <tbody id="track-tbody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -350,7 +367,28 @@
             </div>
         </div>
 
-        <!-- WEATHER / ENV -->
+        <!-- INSTRUCTOR OPS -->
+        <div class="panel" style="flex: 0 0 auto;" id="instructor-panel">
+            <div class="panel-header">
+                <span class="panel-title">SCENARIO OPS [INSTRUCTOR]</span>
+                <span class="panel-badge badge-warning">OFFLINE</span>
+            </div>
+            <div class="panel-body">
+                <div class="data-row">
+                    <span class="data-label">PROFILE</span>
+                    <select id="scenario-profile-select" class="sim-select">
+                        <option value="patrol">STANDARD PATROL</option>
+                        <option value="swarm" selected>MASSED SWARM</option>
+                        <option value="symmetric">SYMMETRIC FORCE</option>
+                    </select>
+                </div>
+                <div class="hud-controls-row" style="margin-top: 6px;">
+                    <button id="btn-scenario-load" class="hud-btn" style="color: var(--amber-alert); border-color: var(--amber-alert);">LOAD SCENARIO</button>
+                    <button id="btn-scenario-clear" class="hud-btn">CLEAR</button>
+                </div>
+            </div>
+        </div>
+
         <div class="panel" style="flex: 0 0 auto;" id="decoy-sim-panel">
             <div class="panel-header">
                 <span class="panel-title">DECOY SIM (SAFE)</span>

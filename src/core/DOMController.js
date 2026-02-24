@@ -18,10 +18,17 @@ export class DOMController {
         this.undoButton = document.getElementById('btn-undo');
         
         this.activeTrackPanelEl = document.getElementById('active-track-panel');
+        this.trackLogCountEl = document.getElementById('track-count');
         this.atLockStatusEl = document.getElementById('at-lock-status');
         this.atDestinationEl = document.getElementById('at-destination');
         this.setDestinationButtonEl = document.getElementById('btn-set-destination');
         this.clearDestinationButtonEl = document.getElementById('btn-clear-destination');
+        
+        // PRD: Track Log Filtering & Sorting State
+        this.filterSearch = '';
+        this.filterThreat = 'ALL';
+        this.sortKey = 'id';
+        this.sortDir = 1; // 1 = asc, -1 = desc
         
         this.tbody = document.getElementById('track-tbody');
         this.cursorCoords = document.getElementById('cursor-coords');
@@ -56,6 +63,69 @@ export class DOMController {
             this.setDestinationButtonEl.classList.toggle('active', this.destinationMode);
             this.setDestinationButtonEl.textContent = this.destinationMode ? 'CLICK MAP...' : 'SET DEST';
         });
+
+        // Search Input
+        const searchInput = document.getElementById('track-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.filterSearch = e.target.value.toLowerCase();
+                this.updateTrackTable();
+            });
+        }
+        
+        // Threat Filter
+        const threatFilter = document.getElementById('track-filter');
+        if (threatFilter) {
+            threatFilter.addEventListener('change', (e) => {
+                this.filterThreat = e.target.value;
+                this.updateTrackTable();
+            });
+        }
+        
+        // Sort Headers
+        document.querySelectorAll('th[data-sort]').forEach(th => {
+            th.addEventListener('click', () => {
+                const key = th.getAttribute('data-sort');
+                if (this.sortKey === key) {
+                    this.sortDir *= -1; // toggle direction
+                } else {
+                    this.sortKey = key;
+                    this.sortDir = 1;
+                }
+                
+                // Update Carets
+                document.querySelectorAll('th[data-sort]').forEach(h => {
+                    const text = h.textContent.replace(' ▾', '').replace(' ▴', '');
+                    if (h === th) {
+                        h.textContent = this.sortDir === 1 ? `${text} ▾` : `${text} ▴`;
+                    } else {
+                        h.textContent = `${text} ▾`;
+                    }
+                });
+                
+                this.updateTrackTable();
+            });
+        });
+
+        // Instructor Scenario Loading
+        const btnScenarioLoad = document.getElementById('btn-scenario-load');
+        if (btnScenarioLoad) {
+            btnScenarioLoad.addEventListener('click', () => {
+                const profile = document.getElementById('scenario-profile-select').value;
+                this.trackManager.resetScenario(profile);
+                this.opsLog.addEntry('MODE', 'INSTRUCTOR', `FORCED SCENARIO PROFILE: [${profile.toUpperCase()}]`);
+                this.updateTrackTable();
+            });
+        }
+        
+        const btnScenarioClear = document.getElementById('btn-scenario-clear');
+        if (btnScenarioClear) {
+            btnScenarioClear.addEventListener('click', () => {
+                this.trackManager.resetScenario('clear');
+                this.opsLog.addEntry('MODE', 'SYSTEM', 'SCENARIO CLEARED (OPERATOR STANDBY)');
+                this.updateTrackTable();
+            });
+        }
 
         const btnRecon = document.getElementById('btn-recon');
         btnRecon?.addEventListener('click', () => {
@@ -220,7 +290,42 @@ export class DOMController {
         
         const selectedTrackId = store.get('selectedTrackId');
         
-        this.trackManager.getTrackData().forEach(t => {
+        let tracks = this.trackManager.getTrackData();
+        
+        // Filter by Threat
+        if (this.filterThreat !== 'ALL') {
+            tracks = tracks.filter(t => t.threat_level === this.filterThreat);
+        }
+        
+        // Filter by Search (ID or Type)
+        if (this.filterSearch !== '') {
+            tracks = tracks.filter(t => 
+                t.id.toLowerCase().includes(this.filterSearch) || 
+                t.subtype.toLowerCase().includes(this.filterSearch)
+            );
+        }
+        
+        // Sort
+        tracks.sort((a, b) => {
+            let valA, valB;
+            switch(this.sortKey) {
+                case 'id': valA = a.id; valB = b.id; break;
+                case 'type': valA = a.subtype; valB = b.subtype; break;
+                case 'rng': 
+                    valA = Math.sqrt(a.x*a.x + a.y*a.y); 
+                    valB = Math.sqrt(b.x*b.x + b.y*b.y); 
+                    break;
+                case 'spd': valA = a.spd; valB = b.spd; break;
+                default: valA = a.id; valB = b.id;
+            }
+            if(valA < valB) return -1 * this.sortDir;
+            if(valA > valB) return 1 * this.sortDir;
+            return 0;
+        });
+        
+        this.trackLogCountEl.textContent = `${tracks.length} ACTIVE`;
+        
+        tracks.forEach(t => {
             const iconClass = t.type === 'hostile' ? 'hostile' : t.type === 'friendly' ? 'friendly' : 'unknown';
             const color = t.type === 'hostile' ? 'var(--red-force)' : t.type === 'friendly' ? 'var(--blue-force)' : 'var(--yellow-unknown)';
             const brg = (Math.atan2(t.x, t.y) * 180 / Math.PI + 360) % 360;

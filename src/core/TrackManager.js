@@ -1,4 +1,4 @@
-import { trackData, sources, confidences } from '../data/mockData.js';
+import { trackData, sources, confidences, loadScenario } from '../data/mockData.js';
 
 export class TrackManager {
     constructor(overlayGroup) {
@@ -56,6 +56,7 @@ export class TrackManager {
                     t: t,
                     baseX: t.x, baseY: t.y, offset: Math.random() * Math.PI * 2,
                     isSwarm: isSwarm,
+                    alerted: false, // Track if we've fired the 60s warning
                     pos: new THREE.Vector2(t.x, t.y),
                     vel: isSwarm ? new THREE.Vector2(Math.cos(angle), Math.sin(angle)).multiplyScalar((t.spd / 120) * 0.5 + 0.1) : null
                 });
@@ -91,6 +92,8 @@ export class TrackManager {
     }
 
     setupSelectionVisuals() {
+        if (this.selectionGroup) return; // Already exists
+
         this.selectionGroup = new THREE.Group();
         this.selectionGroup.visible = false;
         this.overlayGroup.add(this.selectionGroup);
@@ -116,6 +119,32 @@ export class TrackManager {
         this.destLine = new THREE.Line(destLineGeo, destLineMat);
         this.destLine.visible = false;
         this.overlayGroup.add(this.destLine);
+    }
+
+    resetScenario(profile) {
+        if (profile === 'clear') {
+            trackData.length = 0;
+        } else {
+            loadScenario(profile);
+        }
+        
+        Object.keys(this.instances).forEach(type => {
+            const inst = this.instances[type];
+            if(inst.mesh) {
+                this.overlayGroup.remove(inst.mesh);
+                inst.mesh.geometry.dispose();
+                inst.mesh.material.dispose();
+                inst.mesh = null;
+            }
+            inst.tracks = [];
+        });
+        
+        if (window.store) {
+            window.store.set('selectedTrackId', null);
+            window.store.set('reconMode', false);
+        }
+        
+        this.initTracks();
     }
 
     getTrackData() {
@@ -286,6 +315,8 @@ export class TrackManager {
             
             inst.mesh.material.opacity = 0.82 * (1 - skinVal);
             
+            const color = new THREE.Color();
+            
             for(let i = 0; i < inst.tracks.length; i++) {
                 const tr = inst.tracks[i];
                 let px, py;
@@ -315,6 +346,24 @@ export class TrackManager {
                 const sc = isSelected ? 1.15 + Math.sin(t * 3 + tr.offset) * 0.12 : 1 + Math.sin(t * 2 + tr.offset) * 0.15;
                 dummy.scale.setScalar(sc);
                 
+                // Urgency Encoding: High Threat & < 60s
+                if (effectiveMotion > 0) {
+                    tr.t.time_to_event_seconds = Math.max(0, tr.t.time_to_event_seconds - dt * effectiveMotion);
+                }
+                
+                if (tr.t.threat_level === 'HIGH' && tr.t.time_to_event_seconds < 60) {
+                    if (!tr.alerted && window.opsLogInstance) {
+                        tr.alerted = true;
+                        window.opsLogInstance.addEntry('CRITICAL', tr.t.id, `HIGH THREAT IMMINENT: T-MINUS ${Math.floor(tr.t.time_to_event_seconds)}s`, 2, tr.t.time_to_event_seconds);
+                    }
+                    // Fast pulsing red/white
+                    const urgentPulse = (Math.sin(t * 15 + tr.offset) + 1) * 0.5;
+                    color.setHex(urgentPulse > 0.5 ? 0xffffff : 0xff0000);
+                    inst.mesh.setColorAt(i, color);
+                } else {
+                    inst.mesh.setColorAt(i, this.typeColors[type]);
+                }
+                
                 dummy.updateMatrix();
                 inst.mesh.setMatrixAt(i, dummy.matrix);
                 
@@ -333,6 +382,7 @@ export class TrackManager {
                 }
             }
             inst.mesh.instanceMatrix.needsUpdate = true;
+            if (inst.mesh.instanceColor) inst.mesh.instanceColor.needsUpdate = true;
             if(inst.mesh.geometry.boundingSphere === null) {
                 inst.mesh.geometry.computeBoundingSphere();
             }

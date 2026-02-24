@@ -13,33 +13,54 @@ const subtypes = {
     unknown: ['CONVOY', 'ROTARY', 'CIV', 'UAS SWARM']
 };
 
-export const trackData = [
-    { id: 'TK-4071', type: 'hostile', subtype: 'ARMOR', x: -12, y: 8, spd: 22 },
-    { id: 'TK-4072', type: 'hostile', subtype: 'MECH INF', x: 15, y: -5, spd: 35 },
-    { id: 'TK-4073', type: 'hostile', subtype: 'ADA', x: -5, y: -18, spd: 0 },
-    { id: 'TK-4074', type: 'hostile', subtype: 'MLRS', x: 18, y: 12, spd: 0 },
-    { id: 'BF-1001', type: 'friendly', subtype: 'MEU', x: -8, y: 20, spd: 15 },
-    { id: 'UK-7001', type: 'unknown', subtype: 'CONVOY', x: 25, y: -15, spd: 55 }
-];
+export const trackData = [];
 
-// Phase 5 Performance Test: Inject 1,500 Swarm Drones 
-for (let i = 0; i < 1500; i++) {
-    const r = Math.random();
-    // Reduce unknown spawning significantly (now only 10% instead of 30%)
-    const type = r > 0.55 ? 'friendly' : (r > 0.10 ? 'hostile' : 'unknown');
-    const st = subtypes[type];
-    const subtype = st[Math.floor(Math.random() * st.length)];
-    const angle = Math.random() * Math.PI * 2;
-    const radius = Math.random() * 40;
-    trackData.push({
-        id: `SW-${1000 + i}`,
-        type: type,
-        subtype: subtype,
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
-        spd: Math.random() * 120
-    });
+export function loadScenario(profile = 'swarm') {
+    trackData.length = 0;
+    
+    trackData.push(
+        { id: 'TK-4071', type: 'hostile', subtype: 'ARMOR', x: -12, y: 8, spd: 22, threat_level: 'HIGH', time_to_event_seconds: 45 },
+        { id: 'TK-4072', type: 'hostile', subtype: 'MECH INF', x: 15, y: -5, spd: 35, threat_level: 'HIGH', time_to_event_seconds: 120 },
+        { id: 'TK-4073', type: 'hostile', subtype: 'ADA', x: -5, y: -18, spd: 0, threat_level: 'HIGH', time_to_event_seconds: 300 },
+        { id: 'TK-4074', type: 'hostile', subtype: 'MLRS', x: 18, y: 12, spd: 0, threat_level: 'HIGH', time_to_event_seconds: 20 },
+        { id: 'BF-1001', type: 'friendly', subtype: 'MEU', x: -8, y: 20, spd: 15, threat_level: 'LOW', time_to_event_seconds: 999 },
+        { id: 'UK-7001', type: 'unknown', subtype: 'CONVOY', x: 25, y: -15, spd: 55, threat_level: 'MEDIUM', time_to_event_seconds: 300 }
+    );
+
+    let count = 1500;
+    let distFriendly = 0.55;
+    let distHostile = 0.10;
+    
+    if (profile === 'patrol') { count = 150; distFriendly = 0.80; distHostile = 0.05; }
+    else if (profile === 'symmetric') { count = 800; distFriendly = 0.45; distHostile = 0.45; }
+
+    for (let i = 0; i < count; i++) {
+        const r = Math.random();
+        const type = r > distFriendly ? 'friendly' : (r > distHostile ? 'hostile' : 'unknown');
+        const st = subtypes[type];
+        const subtype = st[Math.floor(Math.random() * st.length)];
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.random() * 40;
+        
+        let threat = 'LOW';
+        if (type === 'hostile') threat = 'HIGH';
+        else if (type === 'unknown') threat = 'MEDIUM';
+        
+        trackData.push({
+            id: `SW-${1000 + i}`,
+            type: type,
+            subtype: subtype,
+            x: Math.cos(angle) * radius,
+            y: Math.sin(angle) * radius,
+            spd: Math.random() * 120,
+            threat_level: threat,
+            time_to_event_seconds: Math.floor(Math.random() * 600) + 15
+        });
+    }
 }
+
+// Initial default
+loadScenario('swarm');
 
 export const sigintMessages = [
     { tag: 'intel', text: 'INTERCEPT: TK-4074 MLRS battery emitting targeting radar — potential fire mission imminent' },

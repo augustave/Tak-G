@@ -32,32 +32,54 @@ export class OpsLog {
         parent.appendChild(span);
     }
 
-    addEntry(action, target, details) {
+    addEntry(action, target, details, severity = 0, timeToEvent = 999) {
         const now = new Date();
         const ts = now.toISOString().substr(11, 8) + 'Z';
-        const entryObj = { ts, action, target, details };
+        // Severity scale: 0 = Info, 1 = Warn, 2 = Critical
+        const entryObj = { ts, action, target, details, severity, timeToEvent };
         
-        const logs = [...store.get('opsLog')];
-        logs.unshift(entryObj);
+        let logs = [...store.get('opsLog')];
+        logs.push(entryObj);
+        
+        // PRD Requirement: Alert Queue Priority Rules
+        // 1. HIGH threat first (highest severity)
+        // 2. Shortest time_to_event next
+        // 3. Most recent timestamp fallback
+        logs.sort((a, b) => {
+            if (b.severity !== a.severity) return b.severity - a.severity;
+            if (a.timeToEvent !== b.timeToEvent) return a.timeToEvent - b.timeToEvent;
+            return b.ts.localeCompare(a.ts);
+        });
+        
+        // Cap history to 50 for performance
+        if (logs.length > 50) logs = logs.slice(0, 50);
         store.set('opsLog', logs);
         
-        let insertedEntry = null;
+        this.renderFeed();
+        return true;
+    }
+
+    renderFeed() {
+        if (!this.feedEl) return;
+        this.feedEl.replaceChildren();
         
-        if (this.feedEl) {
+        const logs = store.get('opsLog');
+        logs.forEach(log => {
             const entry = document.createElement('div');
             entry.className = 'sigint-entry';
-            const colorClass = action === 'DESIGNATE' ? 'crit' : (action === 'SELECT' ? 'info' : 'warn');
-            this.appendSpan(entry, 'sigint-time', ts);
-            this.appendSpan(entry, `sigint-tag ${colorClass}`, action);
-            this.appendSpan(entry, 'sigint-text', `[${target}] ${details}`);
             
-            this.feedEl.insertBefore(entry, this.feedEl.firstChild);
-            insertedEntry = entry;
+            // Map styling
+            let colorClass = 'info';
+            if (log.severity === 1) colorClass = 'warn';
+            if (log.severity === 2) colorClass = 'crit sigint-flash'; // Add flashing class for HIGH threats
             
-            while(this.feedEl.children.length > 30) {
-                this.feedEl.removeChild(this.feedEl.lastChild);
-            }
-        }
-        return insertedEntry;
+            if (log.action === 'DESIGNATE') colorClass += ' crit';
+            
+            this.appendSpan(entry, 'sigint-time', log.ts);
+            this.appendSpan(entry, `sigint-tag ${colorClass}`, log.action);
+            this.appendSpan(entry, 'sigint-text', `[${log.target}] ${log.details}`);
+            
+            this.feedEl.appendChild(entry);
+        });
     }
 }

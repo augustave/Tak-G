@@ -15,6 +15,7 @@ const mapEngine = setupMapEngine(container);
 
 // Setup Controllers & Systems
 const opsLog = new OpsLog();
+window.opsLogInstance = opsLog; // For TrackManager access
 const sigintFeed = new SigintFeed();
 const decoySim = new DecoySim(sigintFeed, opsLog);
 const hudController = new HUDController();
