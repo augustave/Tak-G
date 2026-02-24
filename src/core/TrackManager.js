@@ -32,9 +32,14 @@ export class TrackManager {
             };
             
             if (this.instances[t.type]) {
+                const isSwarm = t.subtype === 'UAS SWARM';
+                const angle = Math.random() * Math.PI * 2;
                 this.instances[t.type].tracks.push({
                     t: t,
-                    baseX: t.x, baseY: t.y, offset: Math.random() * Math.PI * 2
+                    baseX: t.x, baseY: t.y, offset: Math.random() * Math.PI * 2,
+                    isSwarm: isSwarm,
+                    pos: new THREE.Vector2(t.x, t.y),
+                    vel: isSwarm ? new THREE.Vector2(Math.cos(angle), Math.sin(angle)).multiplyScalar((t.spd / 120) * 0.5 + 0.1) : null
                 });
             }
         });
@@ -131,7 +136,128 @@ export class TrackManager {
         // Now handled per-frame in animateTracks
     }
 
+    updateSwarmBoids(dt) {
+        const swarms = [];
+        Object.values(this.instances).forEach(inst => {
+            inst.tracks.forEach(tr => {
+                if (tr.isSwarm) swarms.push({ tr, type: inst.mesh.userData.type });
+            });
+        });
+
+        // Optimization: Spatial Hash Grid
+        const grid = new Map();
+        const CELL_SIZE = 2.0;
+        
+        for (let i = 0; i < swarms.length; i++) {
+            const tr = swarms[i].tr;
+            const key = Math.floor(tr.pos.x / CELL_SIZE) + ',' + Math.floor(tr.pos.y / CELL_SIZE);
+            if (!grid.has(key)) grid.set(key, []);
+            grid.get(key).push(swarms[i]);
+        }
+
+        const ALIGN_WEIGHT = 0.8;
+        const COHESION_WEIGHT = 0.5;
+        const SEPARATION_WEIGHT = 1.8;
+        const HUNT_WEIGHT = 1.2;
+        const MAX_SPEED = 5.0; 
+        const MAX_FORCE = 3.0;
+
+        for (let i = 0; i < swarms.length; i++) {
+            const item = swarms[i];
+            const tr = item.tr;
+            
+            const cx = Math.floor(tr.pos.x / CELL_SIZE);
+            const cy = Math.floor(tr.pos.y / CELL_SIZE);
+            
+            let align = new THREE.Vector2();
+            let cohesion = new THREE.Vector2();
+            let separation = new THREE.Vector2();
+            let hunt = new THREE.Vector2();
+            
+            let neighborCount = 0;
+            let huntCount = 0;
+
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    const key = (cx + dx) + ',' + (cy + dy);
+                    const cell = grid.get(key);
+                    if (cell) {
+                        for (let j = 0; j < cell.length; j++) {
+                            const otherItem = cell[j];
+                            if (otherItem.tr !== tr) {
+                                const distSq = tr.pos.distanceToSquared(otherItem.tr.pos);
+                                if (distSq < CELL_SIZE * CELL_SIZE && distSq > 0.0001) {
+                                    const dist = Math.sqrt(distSq);
+                                    if (item.type === otherItem.type) {
+                                        align.add(otherItem.tr.vel);
+                                        cohesion.add(otherItem.tr.pos);
+                                        
+                                        if (dist < CELL_SIZE * 0.4) {
+                                            const diff = tr.pos.clone().sub(otherItem.tr.pos).normalize().divideScalar(dist);
+                                            separation.add(diff);
+                                        }
+                                        neighborCount++;
+                                    } 
+                                    else if ((item.type === 'friendly' && otherItem.type === 'hostile') || 
+                                             (item.type === 'hostile' && otherItem.type === 'friendly')) {
+                                        hunt.add(otherItem.tr.pos);
+                                        huntCount++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            let steer = new THREE.Vector2();
+
+            if (neighborCount > 0) {
+                align.divideScalar(neighborCount);
+                if (align.lengthSq() > 0) align.setLength(MAX_SPEED).sub(tr.vel);
+                
+                cohesion.divideScalar(neighborCount).sub(tr.pos);
+                if (cohesion.lengthSq() > 0) cohesion.setLength(MAX_SPEED).sub(tr.vel);
+                
+                separation.divideScalar(neighborCount);
+                if(separation.lengthSq() > 0) separation.setLength(MAX_SPEED).sub(tr.vel);
+
+                steer.add(align.multiplyScalar(ALIGN_WEIGHT));
+                steer.add(cohesion.multiplyScalar(COHESION_WEIGHT));
+                steer.add(separation.multiplyScalar(SEPARATION_WEIGHT));
+            }
+            
+            if (huntCount > 0) {
+                hunt.divideScalar(huntCount).sub(tr.pos);
+                if(hunt.lengthSq() > 0) hunt.setLength(MAX_SPEED).sub(tr.vel);
+                steer.add(hunt.multiplyScalar(HUNT_WEIGHT));
+            }
+
+            // Boundary avoidance
+            const mapLimit = 36.0;
+            if (tr.pos.x < -mapLimit) steer.x += MAX_FORCE;
+            if (tr.pos.x > mapLimit) steer.x -= MAX_FORCE;
+            if (tr.pos.y < -mapLimit) steer.y += MAX_FORCE;
+            if (tr.pos.y > mapLimit) steer.y -= MAX_FORCE;
+
+            if (steer.lengthSq() > MAX_FORCE * MAX_FORCE) steer.setLength(MAX_FORCE);
+            
+            tr.vel.add(steer.multiplyScalar(dt));
+            if (tr.vel.lengthSq() > MAX_SPEED * MAX_SPEED) tr.vel.setLength(MAX_SPEED);
+            
+            tr.pos.add(tr.vel.clone().multiplyScalar(dt));
+        }
+    }
+
     animateTracks(t, skinVal, effectiveMotion, selectedId) {
+        if (this.lastTime === undefined) this.lastTime = t;
+        const dt = Math.min(t - this.lastTime, 0.1);
+        this.lastTime = t;
+
+        if (dt > 0 && effectiveMotion > 0) {
+            this.updateSwarmBoids(dt * effectiveMotion);
+        }
+
         const dummy = new THREE.Object3D();
         let selectedTrackData = null;
         let selectedTrackPos = null;
@@ -144,11 +270,25 @@ export class TrackManager {
             
             for(let i = 0; i < inst.tracks.length; i++) {
                 const tr = inst.tracks[i];
-                const drift = tr.t.spd > 0 ? 0.3 : 0.05;
-                const px = tr.baseX + Math.sin(t * 0.3 + tr.offset) * drift * 3;
-                const py = tr.baseY + Math.cos(t * 0.25 + tr.offset) * drift * 3;
+                let px, py;
                 
-                const timeAngle = t * 0.8 * Math.max(effectiveMotion, 0.08) + tr.offset;
+                if (tr.isSwarm) {
+                    px = tr.pos.x;
+                    py = tr.pos.y;
+                } else {
+                    const drift = tr.t.spd > 0 ? 0.3 : 0.05;
+                    px = tr.baseX + Math.sin(t * 0.3 + tr.offset) * drift * 3;
+                    py = tr.baseY + Math.cos(t * 0.25 + tr.offset) * drift * 3;
+                    tr.pos.set(px, py); // Keep pos updated for potential interactions
+                }
+                
+                let timeAngle;
+                if (tr.isSwarm) {
+                    // Geometry tip points down (0, -0.6), so align with velocity vector + 90 degrees
+                    timeAngle = Math.atan2(tr.vel.y, tr.vel.x) + Math.PI / 2;
+                } else {
+                    timeAngle = t * 0.8 * Math.max(effectiveMotion, 0.08) + tr.offset;
+                }
                 
                 dummy.position.set(px, py, 0.2);
                 dummy.rotation.set(0, 0, timeAngle);
