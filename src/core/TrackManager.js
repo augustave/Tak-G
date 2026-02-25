@@ -47,7 +47,77 @@ export class TrackManager {
             activeCount: 0
         };
 
+        // Phase 13: OPFOR Web Worker
+        this.initOpforWorker();
+
         this.initTracks();
+    }
+
+    initOpforWorker() {
+        this.opforWorker = new Worker('src/core/opforWorker.js', { type: 'module' });
+        
+        this.opforWorker.onmessage = (e) => {
+            const updatedIntents = new Float32Array(e.data);
+            this.applyOpforIntents(updatedIntents);
+        };
+
+        // Tick the intelligence at 2Hz
+        setInterval(() => this.sendStateToWorker(), 500);
+    }
+
+    sendStateToWorker() {
+        const swarms = [];
+        Object.values(this.instances).forEach(inst => {
+            inst.tracks.forEach(tr => {
+                if (tr.isSwarm) swarms.push({ tr, type: inst.mesh.userData.type });
+            });
+        });
+
+        if (swarms.length === 0) return;
+
+        // 5 floats per track: [x, y, z, id, allegiance]
+        const buffer = new Float32Array(swarms.length * 5);
+        let idx = 0;
+
+        for (let i = 0; i < swarms.length; i++) {
+            const item = swarms[i];
+            const tr = item.tr;
+            
+            buffer[idx++] = tr.pos.x;
+            buffer[idx++] = tr.pos.y;
+            buffer[idx++] = 0.0; // Z
+            
+            // Extract numeric ID (e.g., "SW-1456" -> 1456)
+            const numId = parseInt(tr.t.id.replace(/\D/g, '')) || 0;
+            buffer[idx++] = numId;
+            
+            // Allegiance: 1 for hostile, 0 for friendly
+            buffer[idx++] = item.type === 'hostile' ? 1.0 : 0.0;
+        }
+
+        // Transfer ownership of the buffer array directly (Zero-Copy)
+        this.opforWorker.postMessage(buffer.buffer, [buffer.buffer]);
+    }
+
+    applyOpforIntents(intentsBuffer) {
+        // [id, vx, vy, vz]
+        const intentMap = new Map();
+        for (let i = 0; i < intentsBuffer.length; i += 4) {
+            intentMap.set(intentsBuffer[i], new THREE.Vector2(intentsBuffer[i+1], intentsBuffer[i+2]));
+        }
+
+        Object.values(this.instances).forEach(inst => {
+            if (inst.mesh.userData.type !== 'hostile') return;
+            
+            inst.tracks.forEach(tr => {
+                if (tr.isSwarm) {
+                    const numId = parseInt(tr.t.id.replace(/\D/g, '')) || 0;
+                    if (intentMap.has(numId)) {
+                        tr.desiredOpforVector = intentMap.get(numId);
+                    }
+                }
+            });
+        });
     }
 
     initTracks() {
@@ -329,6 +399,14 @@ export class TrackManager {
             if (tr.pos.x > mapLimit) steer.x -= MAX_FORCE;
             if (tr.pos.y < -mapLimit) steer.y += MAX_FORCE;
             if (tr.pos.y > mapLimit) steer.y -= MAX_FORCE;
+
+            // Phase 13: OPFOR Web Worker Intelligence Override
+            // Blend the background BT intent into the physical steering
+            if (tr.desiredOpforVector && (tr.desiredOpforVector.x !== 0 || tr.desiredOpforVector.y !== 0)) {
+                const opforForce = tr.desiredOpforVector.clone().setLength(MAX_SPEED).sub(tr.vel);
+                // Give the OPFOR intelligence a high weight to override basic flocking when necessary
+                steer.add(opforForce.multiplyScalar(2.0)); 
+            }
 
             if (steer.lengthSq() > MAX_FORCE * MAX_FORCE) steer.setLength(MAX_FORCE);
             
