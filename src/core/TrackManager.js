@@ -145,6 +145,10 @@ export class TrackManager {
         }
         
         this.initTracks();
+
+        if (profile === 'swarm' && window.opsLogInstance) {
+            window.opsLogInstance.addEntry('SYSTEM', 'KINEMATICS', 'SWARM EXHIBITING STARFLAG TOPOLOGICAL COHESION (K=7) & FUZZY LOGIC SENSORY NOISE', 0);
+        }
     }
 
     getTrackData() {
@@ -208,6 +212,9 @@ export class TrackManager {
         const HUNT_WEIGHT = 1.2;
         const MAX_SPEED = 5.0; 
         const MAX_FORCE = 3.0;
+        
+        // STARFLAG: Topological Fixed K Nearest Neighbors
+        const TOPOLOGICAL_K = 7;
 
         for (let i = 0; i < swarms.length; i++) {
             const item = swarms[i];
@@ -221,8 +228,9 @@ export class TrackManager {
             let separation = new THREE.Vector2();
             let hunt = new THREE.Vector2();
             
-            let neighborCount = 0;
             let huntCount = 0;
+            const localNeighbors = [];
+            const localSeparations = [];
 
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dy = -1; dy <= 1; dy++) {
@@ -233,20 +241,21 @@ export class TrackManager {
                             const otherItem = cell[j];
                             if (otherItem.tr !== tr) {
                                 const distSq = tr.pos.distanceToSquared(otherItem.tr.pos);
-                                if (distSq < CELL_SIZE * CELL_SIZE && distSq > 0.0001) {
-                                    const dist = Math.sqrt(distSq);
+                                if (distSq > 0.0001) { // not self
                                     if (item.type === otherItem.type) {
-                                        align.add(otherItem.tr.vel);
-                                        cohesion.add(otherItem.tr.pos);
+                                        // Collect all friendly neighbors for sorting
+                                        localNeighbors.push({ tr: otherItem.tr, distSq });
                                         
-                                        if (dist < CELL_SIZE * 0.4) {
+                                        // Separation strictly requires metric bounding (collision avoidance)
+                                        if (distSq < CELL_SIZE * 0.4 * CELL_SIZE * 0.4) {
+                                            const dist = Math.sqrt(distSq);
                                             const diff = tr.pos.clone().sub(otherItem.tr.pos).normalize().divideScalar(dist);
-                                            separation.add(diff);
+                                            localSeparations.push(diff);
                                         }
-                                        neighborCount++;
                                     } 
-                                    else if ((item.type === 'friendly' && otherItem.type === 'hostile') || 
-                                             (item.type === 'hostile' && otherItem.type === 'friendly')) {
+                                    else if (distSq < CELL_SIZE * CELL_SIZE && 
+                                            ((item.type === 'friendly' && otherItem.type === 'hostile') || 
+                                             (item.type === 'hostile' && otherItem.type === 'friendly'))) {
                                         hunt.add(otherItem.tr.pos);
                                         huntCount++;
                                     }
@@ -257,20 +266,41 @@ export class TrackManager {
                 }
             }
 
+            // STARFLAG: Sort found neighbors by distance and slice top K
+            localNeighbors.sort((a, b) => a.distSq - b.distSq);
+            const topK = localNeighbors.slice(0, TOPOLOGICAL_K);
+            const neighborCount = topK.length;
+
             let steer = new THREE.Vector2();
 
             if (neighborCount > 0) {
+                for (let k = 0; k < neighborCount; k++) {
+                    const n = topK[k].tr;
+                    cohesion.add(n.pos);
+                    
+                    // Fuzzy Logic (Bajec): Add sensory noise to the velocity perception
+                    const fuzzyNoise = 0.8 + (Math.random() * 0.4); // 0.8x to 1.2x variance
+                    const fuzzyVel = n.vel.clone().multiplyScalar(fuzzyNoise);
+                    align.add(fuzzyVel);
+                }
+
                 align.divideScalar(neighborCount);
                 if (align.lengthSq() > 0) align.setLength(MAX_SPEED).sub(tr.vel);
                 
                 cohesion.divideScalar(neighborCount).sub(tr.pos);
                 if (cohesion.lengthSq() > 0) cohesion.setLength(MAX_SPEED).sub(tr.vel);
                 
-                separation.divideScalar(neighborCount);
-                if(separation.lengthSq() > 0) separation.setLength(MAX_SPEED).sub(tr.vel);
-
                 steer.add(align.multiplyScalar(ALIGN_WEIGHT));
                 steer.add(cohesion.multiplyScalar(COHESION_WEIGHT));
+            }
+            
+            // Separation resolves over metric boundaries to prevent overlap
+            if (localSeparations.length > 0) {
+                for (let s = 0; s < localSeparations.length; s++) {
+                    separation.add(localSeparations[s]);
+                }
+                separation.divideScalar(localSeparations.length);
+                if(separation.lengthSq() > 0) separation.setLength(MAX_SPEED).sub(tr.vel);
                 steer.add(separation.multiplyScalar(SEPARATION_WEIGHT));
             }
             
