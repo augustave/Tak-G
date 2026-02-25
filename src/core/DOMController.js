@@ -31,6 +31,17 @@ export class DOMController {
         this.sortDir = 1; // 1 = asc, -1 = desc
         
         this.tbody = document.getElementById('track-tbody');
+        this.trackLogCountEl = document.querySelector('.panel-badge.badge-warning');
+
+        // Phase 12 Telemetry DOM
+        this.domPol = document.getElementById('kinematics-polarization');
+        this.barPol = document.getElementById('bar-polarization');
+        this.domMill = document.getElementById('kinematics-milling');
+        this.barMill = document.getElementById('bar-milling');
+        this.domCoh = document.getElementById('kinematics-cohesion');
+        this.barCoh = document.getElementById('bar-cohesion');
+        this.kinematicsBadge = document.getElementById('kinematics-badge');
+
         this.cursorCoords = document.getElementById('cursor-coords');
         this.cursorMgrs = document.getElementById('cursor-mgrs');
 
@@ -468,5 +479,53 @@ export class DOMController {
         
         this.opsLog.addEntry('MODE', 'SYSTEM', `DESIGNATION REVOKED ${undoDesig.trackId}`);
         this.clearUndoWindow();
+    }
+
+    update() {
+        if (!this.trackManager || !this.domPol) return;
+        
+        const telemetry = this.trackManager.getSwarmTelemetry();
+        if (telemetry.activeCount === 0) {
+            this.domPol.textContent = '0.00';
+            this.barPol.style.width = '0%';
+            this.domMill.textContent = '0.00';
+            this.barMill.style.width = '0%';
+            this.domCoh.textContent = '0.00';
+            this.barCoh.style.width = '0%';
+            this.kinematicsBadge.textContent = 'NO LOC';
+            this.kinematicsBadge.className = 'panel-badge badge-warning';
+            return;
+        }
+
+        // Format to 2 decimal places
+        const polStr = telemetry.polarization.toFixed(2);
+        const millStr = telemetry.milling.toFixed(2);
+        const cohStr = telemetry.cohesion.toFixed(2);
+
+        this.domPol.textContent = polStr;
+        this.barPol.style.width = `${telemetry.polarization * 100}%`;
+        
+        this.domMill.textContent = millStr;
+        this.barMill.style.width = `${telemetry.milling * 100}%`;
+        
+        this.domCoh.textContent = cohStr;
+        this.barCoh.style.width = `${telemetry.cohesion * 100}%`;
+
+        // Update Badge state
+        if (telemetry.milling > 0.6) {
+            this.kinematicsBadge.textContent = 'MILLING';
+            this.kinematicsBadge.className = 'panel-badge badge-critical';
+        } else if (telemetry.polarization > 0.7) {
+            this.kinematicsBadge.textContent = 'ALIGNED';
+            this.kinematicsBadge.className = 'panel-badge badge-warning';
+        } else if (telemetry.cohesion > 0.8) {
+            this.kinematicsBadge.textContent = 'CLUSTERED';
+            this.kinematicsBadge.className = 'panel-badge badge-nominal';
+        } else {
+            this.kinematicsBadge.textContent = 'DISORDERED';
+            this.kinematicsBadge.className = 'panel-badge';
+            this.kinematicsBadge.style.background = 'var(--panel-bg)';
+            this.kinematicsBadge.style.color = '#fff';
+        }
     }
 }

@@ -38,6 +38,15 @@ export class TrackManager {
             unknown: { mesh: null, tracks: [] }
         };
 
+        // Phase 12 Dynamical System Validation Harness
+        this.swarmTelemetry = {
+            polarization: 0,
+            milling: 0,
+            cohesion: 0,
+            com: new THREE.Vector2(),
+            activeCount: 0
+        };
+
         this.initTracks();
     }
 
@@ -153,6 +162,10 @@ export class TrackManager {
 
     getTrackData() {
         return this.trackData;
+    }
+
+    getSwarmTelemetry() {
+        return this.swarmTelemetry;
     }
 
     getTrackMeshes() {
@@ -324,6 +337,66 @@ export class TrackManager {
             
             tr.pos.add(tr.vel.clone().multiplyScalar(dt));
         }
+
+        this.updateSwarmTelemetry(swarms);
+    }
+
+    updateSwarmTelemetry(swarms) {
+        if (swarms.length === 0) {
+            this.swarmTelemetry.activeCount = 0;
+            return;
+        }
+
+        let com = new THREE.Vector2();
+        let avgVel = new THREE.Vector2();
+        
+        // 1. Calculate Center of Mass (CoM) and Average Velocity
+        for (let i = 0; i < swarms.length; i++) {
+            com.add(swarms[i].tr.pos);
+            avgVel.add(swarms[i].tr.vel);
+        }
+        com.divideScalar(swarms.length);
+        avgVel.divideScalar(swarms.length);
+        
+        this.swarmTelemetry.com.copy(com);
+        this.swarmTelemetry.activeCount = swarms.length;
+
+        // 2. Polarization (Alignment magnitude 0-1)
+        // If they are all flying the exact same direction, the sum of normalized vectors divided by N will be 1
+        let polarizationSum = new THREE.Vector2();
+        for (let i = 0; i < swarms.length; i++) {
+            if (swarms[i].tr.vel.lengthSq() > 0) {
+                polarizationSum.add(swarms[i].tr.vel.clone().normalize());
+            }
+        }
+        this.swarmTelemetry.polarization = polarizationSum.length() / swarms.length;
+
+        // 3. Milling (Angular Momentum around CoM)
+        let millingSum = 0;
+        let cohesionSum = 0;
+        
+        for (let i = 0; i < swarms.length; i++) {
+            const tr = swarms[i].tr;
+            const toCom = tr.pos.clone().sub(com);
+            const dist = toCom.length();
+            cohesionSum += dist;
+            
+            if (dist > 0.001 && tr.vel.lengthSq() > 0) {
+                // Cross product of unit vector to CoM and normalized velocity
+                const rNorm = toCom.normalize();
+                const vNorm = tr.vel.clone().normalize();
+                // 2D Cross product magnitude: x1*y2 - y1*x2
+                const cross = (rNorm.x * vNorm.y) - (rNorm.y * vNorm.x);
+                millingSum += Math.abs(cross);
+            }
+        }
+        
+        this.swarmTelemetry.milling = millingSum / swarms.length;
+        
+        // 4. Cohesion (Inverse Dispersion)
+        const avgDist = cohesionSum / swarms.length;
+        // Normalize Cohesion to a 0-1 scale visually where ~30 unit spread is 0 cohesion, 0 spread is 1
+        this.swarmTelemetry.cohesion = Math.max(0, 1.0 - (avgDist / 20.0));
     }
 
     animateTracks(t, skinVal, effectiveMotion, selectedId) {

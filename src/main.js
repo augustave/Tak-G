@@ -300,6 +300,7 @@ function animate(ts) {
     const reconMode = store.get('reconMode');
     
     trackManager.animateTracks(t, skinVal, effectiveMotion, selectedTrackId);
+    domController.update();
     splatController.animate(t, trackManager, mapEngine.camera);
 
     const camAngle = t * 0.06;

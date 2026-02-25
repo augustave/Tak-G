@@ -367,6 +367,39 @@
             </div>
         </div>
 
+        <!-- SWARM KINEMATICS -->
+        <div class="panel" style="flex: 0 0 auto;" id="kinematics-panel">
+            <div class="panel-header">
+                <span class="panel-title">SWARM KINEMATICS</span>
+                <span class="panel-badge badge-nominal" id="kinematics-badge">CALCULATING</span>
+            </div>
+            <div class="panel-body">
+                <div class="data-row">
+                    <span class="data-label">POLARIZATION</span>
+                    <span class="data-value cyan" id="kinematics-polarization">0.00</span>
+                </div>
+                <div class="progress-bar" style="margin-bottom: 8px;">
+                    <div class="progress-fill" id="bar-polarization" style="width:0%; background: var(--cyan-neutral);"></div>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label">MILLING (ANG MOMENTUM)</span>
+                    <span class="data-value amber" id="kinematics-milling">0.00</span>
+                </div>
+                <div class="progress-bar" style="margin-bottom: 8px;">
+                    <div class="progress-fill" id="bar-milling" style="width:0%; background: var(--amber-alert);"></div>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label">COHESION (INV DISPERSION)</span>
+                    <span class="data-value green" id="kinematics-cohesion">0.00</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="bar-cohesion" style="width:0%; background: var(--green-neutral);"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- INSTRUCTOR OPS -->
         <div class="panel" style="flex: 0 0 auto;" id="instructor-panel">
             <div class="panel-header">
