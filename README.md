@@ -38,12 +38,18 @@ The project is built emphasizing maximum runtime execution speed and minimal dep
 *   **Dynamical System Harness**: Built a real-time math engine into the `TrackManager` that calculates systemic **Order Parameters** (Polarization, Milling, Cohesion).
 *   **Telemetry HUD**: Wired the Order Parameters into a live `SWARM KINEMATICS` UI panel, confirming through hard math that the biological swarms are undergoing actual regime changes and phase transitions, not just moving organically. 
 
+### Phase 13: OPFOR Web Worker Behavior Tree
+
+- **Background Intelligence**: Offloaded tactical decision-making to a dedicated Web Worker (`opforWorker.js`), ensuring the 60fps main rendering thread remains uninterrupted by AI pathfinding logic.
+- **Zero-Copy Memory Transfers**: Utilized `Float32Array` buffers to pass positional data for 1,500+ tracks between the main thread and the worker at 2Hz. This zero-copy approach prevents JavaScript Garbage Collection stutters.
+- **Vanilla Behavior Tree**: Implemented a lightweight hierarchical rule engine (Selectors, Sequences) providing Hostiles with tactical maneuvers. Swarms now dynamically evade incoming Blue forces or wrap around to flank their center of mass.
+
 ## Running Locally
 1. Clone the repository.
 2. Serve the root directory using any local web server (e.g., `python3 -m http.server 8080` or `npx serve`).
 3. Navigate to `http://localhost:8080` (or `http://localhost:5500` if using Live Server) in any modern WebGL-compatible browser.
 
 ## Next Steps
-- Exploring experimental AI/LLM integration to emulate automated opposing force (OPFOR) or blue-force autonomous agents.
 - Further expansion of the Decoy Simulation tools.
 - Enhancing Electronic Warfare (EW) UI elements for degraded sensor states.
+- Expanding the Web Worker Behavior Tree with more complex strategic playbooks.
